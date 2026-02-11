@@ -343,8 +343,15 @@ function openOverlay(t,html){
   document.getElementById("overlay").classList.add("show")
 }
 function closeOverlay(){document.getElementById("overlay").classList.remove("show")}
+  <script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+
 </script>
 </body>
 </html>
+
 
 
