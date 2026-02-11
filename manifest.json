@@ -1,12 +1,25 @@
 {
-  "background_color": "#0e0e11",
-  "dir": "ltr",
+  "name": "2048",
+  "short_name": "2048",
+  "description": "Игра 2048 с квестами, сундуками и скинами",
+  "start_url": "/2048-mobile/",
+  "scope": "/2048-mobile/",
   "display": "standalone",
-  "name": "2048 Mobile",
   "orientation": "portrait",
-  "scope": "/",
-  "short_name":"2048",
-  "start_url":"portrait",
+  "background_color": "#0e0e11",
   "theme_color": "#0e0e11",
-  "description": "Игра 2048 с квестами и скинами"
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
 }
