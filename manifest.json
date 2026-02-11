@@ -1,0 +1,12 @@
+{
+  "background_color": "#0e0e11",
+  "dir": "ltr",
+  "display": "standalone",
+  "name": "2048 Mobile",
+  "orientation": "portrait",
+  "scope": "/",
+  "short_name":"2047",
+  "start_url":"portrait",
+  "theme_color": "#0e0e11",
+  "description": "Игра 2048 с квестами и скинами"
+}
