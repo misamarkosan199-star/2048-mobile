@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>2048</title>
+
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{
+  margin:0;background:#0e0e11;color:#fff;
+  font-family:system-ui,Arial;display:flex;justify-content:center
+}
+.app{width:100%;max-width:420px;min-height:100vh;padding:16px}
+.hidden{display:none}
+h1{text-align:center;font-size:40px;margin:20px 0}
+.btn{
+  background:#1f1f27;border-radius:16px;padding:16px;margin:10px 0;
+  text-align:center;font-weight:800;font-size:18px
+}
+.btn:active{transform:scale(.97)}
+.btn.locked{opacity:.4}
+
+.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.badge{background:#1f1f27;padding:10px 14px;border-radius:14px;font-weight:700}
+.grid{
+  background:#1f1f27;padding:10px;border-radius:18px;
+  display:grid;grid-template-columns:repeat(4,1fr);gap:10px
+}
+.cell{
+  aspect-ratio:1;border-radius:14px;display:flex;
+  align-items:center;justify-content:center;
+  font-size:28px;font-weight:900;background:#2b2b35
+}
+
+/* ===== СКИНЫ ===== */
+.skin-classic .n2{background:#eee4da;color:#000}
+.skin-classic .n4{background:#ede0c8;color:#000}
+.skin-classic .n8{background:#f2b179}
+.skin-classic .n16{background:#f59563}
+.skin-classic .n32{background:#f67c5f}
+.skin-classic .n64{background:#f65e3b}
+.skin-classic .n128{background:#edcf72;color:#000}
+.skin-classic .n256{background:#edcc61;color:#000}
+.skin-classic .n512{background:#edc850;color:#000}
+
+.skin-neon .cell{background:#14141a}
+.skin-neon .n2,.skin-neon .n4{background:#00f0ff;color:#000}
+
+.skin-lava .cell{background:#2a0f0f}
+.skin-lava .n2,.skin-lava .n4{background:#ff5722}
+
+.skin-mint .cell{background:#0f2a25}
+.skin-mint .n2,.skin-mint .n4{background:#00ffc6;color:#000}
+
+/* ===== ОВЕРЛЕЙ ===== */
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.75);
+  display:none;align-items:center;justify-content:center;z-index:5
+}
+.overlay.show{display:flex}
+.card{
+  background:#1f1f27;padding:20px;border-radius:18px;
+  width:80%;text-align:center
+}
+
+/* ===== СУНДУК ===== */
+.chest{
+  width:120px;height:90px;margin:0 auto 10px;
+  background:#7c5a2e;border-radius:10px;
+  animation:shake 1s infinite
+}
+@keyframes shake{
+  0%{transform:rotate(0)}
+  25%{transform:rotate(2deg)}
+  50%{transform:rotate(-2deg)}
+  75%{transform:rotate(2deg)}
+  100%{transform:rotate(0)}
+}
+</style>
+</head>
+
+<body>
+<div class="app skin-classic" id="app">
+
+<!-- ===== МЕНЮ ===== -->
+<div id="menu">
+  <h1>2048</h1>
+  <div class="btn hidden" id="continueBtn" onclick="continueGame()">▶ Продолжить</div>
+  <div class="btn" onclick="newGame()">🆕 Новая игра</div>
+  <div class="btn" onclick="showQuests()">📜 Квесты</div>
+  <div class="btn" onclick="openSkins()">🎨 Скины</div>
+  <div class="btn" onclick="openChest()">🎁 Сундук (<span id="chests">0</span>)</div>
+  <div style="text-align:center;opacity:.7">
+    Рекорд: <span id="bestMenu">0</span>
+  </div>
+</div>
+
+<!-- ===== ИГРА ===== -->
+<div id="game" class="hidden">
+  <div class="top">
+    <div class="badge">Очки: <span id="score">0</span></div>
+    <div class="badge" onclick="pauseGame()">⏸ Пауза</div>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+
+<!-- ===== СКИНЫ ===== -->
+<div id="skins" class="hidden">
+  <h1>Скины</h1>
+  <div id="skinsList"></div>
+  <div class="btn" onclick="backToMenu()">⬅ Назад</div>
+</div>
+
+</div>
+
+<!-- ===== ОВЕРЛЕЙ ===== -->
+<div class="overlay" id="overlay">
+  <div class="card">
+    <h2 id="ovTitle"></h2>
+    <div id="ovContent"></div>
+    <div class="btn" onclick="closeOverlay()">ОК</div>
+  </div>
+</div>
+
+<script>
+/* ===== ДАННЫЕ ===== */
+const SKINS={
+  classic:{name:"Классический",rarity:"Обычный",unlocked:true},
+  neon:{name:"Неон",rarity:"Редкий",unlocked:false},
+  lava:{name:"Лава",rarity:"Эпический",unlocked:false},
+  mint:{name:"Мята",rarity:"Редкий",unlocked:false}
+}
+
+let state=JSON.parse(localStorage.getItem("save")) || {
+  grid:null,score:0,
+  best:+localStorage.getItem("best")||0,
+  skin:localStorage.getItem("skin")||"classic",
+  chests:+localStorage.getItem("chests")||0,
+  quests:{128:false,256:false,512:false}
+}
+
+const app=document.getElementById("app")
+const gridEl=document.getElementById("grid")
+const scoreEl=document.getElementById("score")
+
+document.getElementById("bestMenu").textContent=state.best
+document.getElementById("chests").textContent=state.chests
+applySkin()
+checkContinue()
+
+/* ===== СОХРАНЕНИЕ ===== */
+function saveGame(){
+  localStorage.setItem("save",JSON.stringify({
+    grid:state.grid,
+    score:state.score,
+    quests:state.quests
+  }))
+  localStorage.setItem("best",state.best)
+  localStorage.setItem("skin",state.skin)
+  localStorage.setItem("chests",state.chests)
+}
+
+function clearSave(){
+  localStorage.removeItem("save")
+}
+
+function checkContinue(){
+  if(state.grid)document.getElementById("continueBtn").classList.remove("hidden")
+}
+
+/* ===== ИГРА ===== */
+function newGame(){
+  state.grid=Array(16).fill(0)
+  state.score=0
+  add();add()
+  saveGame()
+  start()
+}
+
+function continueGame(){
+  start()
+}
+
+function start(){
+  show("game")
+  draw()
+}
+
+function pauseGame(){
+  saveGame()
+  openOverlay("Пауза",`
+    <div class="btn" onclick="resume()">▶ Продолжить</div>
+    <div class="btn" onclick="exitGame()">⬅ Выйти в меню</div>
+  `)
+}
+function resume(){closeOverlay()}
+function exitGame(){
+  saveGame()
+  closeOverlay()
+  show("menu")
+}
+
+function add(){
+  let e=state.grid.map((v,i)=>v?null:i).filter(v=>v!=null)
+  if(e.length)state.grid[e[Math.random()*e.length|0]]=2
+}
+
+function draw(){
+  gridEl.innerHTML=""
+  scoreEl.textContent=state.score
+  state.grid.forEach(v=>{
+    let d=document.createElement("div")
+    d.className="cell"+(v?" n"+v:"")
+    d.textContent=v||""
+    gridEl.appendChild(d)
+    if(state.quests[v]===false){
+      state.quests[v]=true
+      state.chests++
+      saveGame()
+      openOverlay("Квест выполнен!","Ты получил сундук 🎁")
+    }
+  })
+}
+
+function slide(row){
+  row=row.filter(v=>v)
+  for(let i=0;i<row.length-1;i++){
+    if(row[i]===row[i+1]){
+      row[i]*=2;state.score+=row[i];row[i+1]=0
+    }
+  }
+  return row.filter(v=>v).concat([0,0,0,0]).slice(0,4)
+}
+
+function move(dir){
+  let old=state.grid.slice()
+  for(let i=0;i<4;i++){
+    let r=[]
+    for(let j=0;j<4;j++){
+      let k=dir<2?i*4+j:j*4+i
+      r.push(state.grid[k])
+    }
+    if(dir%2)r.reverse()
+    r=slide(r)
+    if(dir%2)r.reverse()
+    for(let j=0;j<4;j++){
+      let k=dir<2?i*4+j:j*4+i
+      state.grid[k]=r[j]
+    }
+  }
+  if(state.grid+""!==old+""){
+    add()
+    if(state.score>state.best){state.best=state.score}
+    saveGame()
+    draw()
+  }
+}
+
+/* ===== УПРАВЛЕНИЕ ===== */
+document.addEventListener("keydown",e=>{
+  if(e.key==="ArrowLeft")move(0)
+  if(e.key==="ArrowRight")move(1)
+  if(e.key==="ArrowUp")move(2)
+  if(e.key==="ArrowDown")move(3)
+})
+
+let sx,sy
+document.addEventListener("touchstart",e=>{
+  sx=e.touches[0].clientX;sy=e.touches[0].clientY
+},{passive:true})
+document.addEventListener("touchend",e=>{
+  let dx=e.changedTouches[0].clientX-sx
+  let dy=e.changedTouches[0].clientY-sy
+  Math.abs(dx)>Math.abs(dy)?move(dx>0?1:0):move(dy>0?3:2)
+},{passive:true})
+
+/* ===== СУНДУКИ / СКИНЫ ===== */
+function openChest(){
+  if(state.chests<=0){
+    openOverlay("Сундуков нет","Выполняй квесты")
+    return
+  }
+  let pool=Object.entries(SKINS).filter(s=>!s[1].unlocked)
+  if(!pool.length){
+    openOverlay("Все скины открыты","Поздравляем 🎉")
+    return
+  }
+  state.chests--
+  let win=pool[Math.random()*pool.length|0]
+  win[1].unlocked=true
+  saveGame()
+  openOverlay("Сундук открыт!",`
+    <div class="chest"></div>
+    Выпал скин: <b>${win[1].name}</b><br>
+    Редкость: ${win[1].rarity}
+  `)
+}
+
+function openSkins(){
+  show("skins")
+  let list=document.getElementById("skinsList")
+  list.innerHTML=""
+  for(let k in SKINS){
+    let s=SKINS[k]
+    let d=document.createElement("div")
+    d.className="btn"+(s.unlocked?"":" locked")
+    d.textContent=s.name+" ("+s.rarity+")"
+    if(s.unlocked)d.onclick=()=>selectSkin(k)
+    list.appendChild(d)
+  }
+}
+
+function selectSkin(k){
+  state.skin=k
+  localStorage.setItem("skin",k)
+  applySkin()
+  openOverlay("Скин выбран",SKINS[k].name)
+}
+
+function applySkin(){
+  app.className="app skin-"+state.skin
+}
+
+/* ===== UI ===== */
+function show(id){
+  ["menu","game","skins"].forEach(s=>document.getElementById(s).classList.add("hidden"))
+  document.getElementById(id).classList.remove("hidden")
+}
+function backToMenu(){show("menu")}
+function showQuests(){
+  let t=Object.entries(state.quests).map(q=>q[0]+": "+(q[1]?"✔":"❌")).join("<br>")
+  openOverlay("Квесты",t)
+}
+function openOverlay(t,html){
+  document.getElementById("ovTitle").textContent=t
+  document.getElementById("ovContent").innerHTML=html
+  document.getElementById("overlay").classList.add("show")
+}
+function closeOverlay(){document.getElementById("overlay").classList.remove("show")}
+</script>
+</body>
+</html>
