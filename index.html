@@ -1,357 +1,1033 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-<link rel="manifest" href="manifest.json">
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-<meta name="theme-color" content="#0e0e11">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>2048</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e0e11">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 
-<style>
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{
-  margin:0;background:#0e0e11;color:#fff;
-  font-family:system-ui,Arial;display:flex;justify-content:center
-}
-.app{width:100%;max-width:420px;min-height:100vh;padding:16px}
-.hidden{display:none}
-h1{text-align:center;font-size:40px;margin:20px 0}
-.btn{
-  background:#1f1f27;border-radius:16px;padding:16px;margin:10px 0;
-  text-align:center;font-weight:800;font-size:18px
-}
-.btn:active{transform:scale(.97)}
-.btn.locked{opacity:.4}
+  <title>2048</title>
+  <link rel="manifest" href="manifest.json">
 
-.top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
-.badge{background:#1f1f27;padding:10px 14px;border-radius:14px;font-weight:700}
-.grid{
-  background:#1f1f27;padding:10px;border-radius:18px;
-  display:grid;grid-template-columns:repeat(4,1fr);gap:10px
-}
-.cell{
-  aspect-ratio:1;border-radius:14px;display:flex;
-  align-items:center;justify-content:center;
-  font-size:28px;font-weight:900;background:#2b2b35
-}
+  <style>
+    :root{
+      --bg:#0e0e11;
+      --panel:#1f1f27;
+      --cell:#2b2b35;
+      --text:#fff;
+      --muted:rgba(255,255,255,.65);
+      --gap:10px;
+      --radius:18px;
+      --tileRadius:14px;
+      --tileSize:72px; /* будет пересчитано JS */
+      --dur:140ms;
+    }
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:system-ui,-apple-system,Segoe UI,Arial;
+      display:flex;
+      justify-content:center;
+      overscroll-behavior: none;
+      height:100dvh;
+    }
+    .app{
+      width:100%;
+      max-width:420px;
+      min-height:100dvh;
+      padding:16px;
+      padding-bottom:calc(16px + env(safe-area-inset-bottom));
+    }
+    .hidden{display:none}
+    h1{margin:18px 0;text-align:center;font-size:40px;letter-spacing:.5px}
+    .btn{
+      background:var(--panel);
+      border-radius:16px;
+      padding:16px;
+      margin:10px 0;
+      text-align:center;
+      font-weight:900;
+      font-size:18px;
+      user-select:none;
+    }
+    .btn:active{transform:scale(.98)}
+    .btn.secondary{opacity:.9}
+    .btn.locked{opacity:.4}
+    .row{display:flex;gap:10px}
+    .row .btn{flex:1;margin:0}
+    .smallCenter{opacity:.7;text-align:center;margin-top:8px}
+    .top{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:10px;
+      gap:10px;
+    }
+    .badge{
+      background:var(--panel);
+      padding:10px 14px;
+      border-radius:14px;
+      font-weight:800;
+      user-select:none;
+      display:flex;
+      flex-direction:column;
+      line-height:1.05;
+      min-width:110px;
+    }
+    .badge b{font-size:18px}
+    .badge.action{min-width:auto;cursor:pointer}
+    .board{
+      background:var(--panel);
+      border-radius:var(--radius);
+      padding:var(--gap);
+      position:relative;
+      width:100%;
+      aspect-ratio:1;
+      touch-action:none;
+    }
+    .grid{
+      position:absolute;
+      inset:var(--gap);
+      display:grid;
+      grid-template-columns:repeat(4,1fr);
+      grid-template-rows:repeat(4,1fr);
+      gap:var(--gap);
+    }
+    .cell{
+      background:var(--cell);
+      border-radius:var(--tileRadius);
+    }
 
-/* ===== СКИНЫ ===== */
-.skin-classic .n2{background:#eee4da;color:#000}
-.skin-classic .n4{background:#ede0c8;color:#000}
-.skin-classic .n8{background:#f2b179}
-.skin-classic .n16{background:#f59563}
-.skin-classic .n32{background:#f67c5f}
-.skin-classic .n64{background:#f65e3b}
-.skin-classic .n128{background:#edcf72;color:#000}
-.skin-classic .n256{background:#edcc61;color:#000}
-.skin-classic .n512{background:#edc850;color:#000}
+    /* Tiles layer */
+    .tiles{
+      position:absolute;
+      inset:var(--gap);
+      pointer-events:none;
+    }
+    .tile{
+      position:absolute;
+      width:var(--tileSize);
+      height:var(--tileSize);
+      border-radius:var(--tileRadius);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:950;
+      font-size:28px;
+      background:#3a3a48;
+      color:#fff;
+      transform:translate3d(0,0,0);
+      transition: transform var(--dur) ease;
+      will-change: transform;
+    }
+    .tile.small{font-size:24px}
+    .tile.tiny{font-size:20px}
+    .tile.pop{animation:pop 160ms ease}
+    @keyframes pop{0%{transform:translate3d(var(--x),var(--y),0) scale(1)}50%{transform:translate3d(var(--x),var(--y),0) scale(1.12)}100%{transform:translate3d(var(--x),var(--y),0) scale(1)}}
+    .tile.spawn{animation:spawn 140ms ease}
+    @keyframes spawn{from{transform:translate3d(var(--x),var(--y),0) scale(.6);opacity:.7}to{transform:translate3d(var(--x),var(--y),0) scale(1);opacity:1}}
 
-.skin-neon .cell{background:#14141a}
-.skin-neon .n2,.skin-neon .n4{background:#00f0ff;color:#000}
+    /* Overlays */
+    .overlay{
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.75);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index:10;
+      padding:18px;
+    }
+    .overlay.show{display:flex}
+    .card{
+      width:min(420px, 92vw);
+      background:var(--panel);
+      border-radius:18px;
+      padding:18px;
+      text-align:center;
+    }
+    .card h2{margin:0 0 10px 0}
+    .card p{margin:8px 0;color:var(--muted)}
+    .card .btn{margin:10px 0}
+    .card .row{margin-top:8px}
 
-.skin-lava .cell{background:#2a0f0f}
-.skin-lava .n2,.skin-lava .n4{background:#ff5722}
+    /* Chest animation */
+    .chestBox{
+      width:140px;height:105px;
+      margin:6px auto 10px;
+      border-radius:14px;
+      background:linear-gradient(180deg,#8b5a2b,#5a3a18);
+      position:relative;
+      overflow:hidden;
+      animation:shake 800ms infinite;
+    }
+    .chestBox::before{
+      content:"";
+      position:absolute;left:0;right:0;top:44px;height:12px;
+      background:rgba(0,0,0,.25);
+    }
+    .chestBox::after{
+      content:"";
+      position:absolute;left:58px;top:42px;width:24px;height:24px;
+      background:rgba(255,255,255,.35);
+      border-radius:8px;
+    }
+    @keyframes shake{
+      0%{transform:rotate(0deg)}
+      25%{transform:rotate(2deg)}
+      50%{transform:rotate(-2deg)}
+      75%{transform:rotate(2deg)}
+      100%{transform:rotate(0deg)}
+    }
+    .spark{
+      font-size:22px;
+      margin-top:8px;
+      animation:spark 600ms infinite;
+      opacity:.9;
+    }
+    @keyframes spark{0%{transform:translateY(0);opacity:.7}50%{transform:translateY(-4px);opacity:1}100%{transform:translateY(0);opacity:.7}}
 
-.skin-mint .cell{background:#0f2a25}
-.skin-mint .n2,.skin-mint .n4{background:#00ffc6;color:#000}
+    /* Skins (цвета плиток) */
+    .skin-classic {}
+    .skin-neon  {}
+    .skin-lava  {}
+    .skin-mint  {}
 
-/* ===== ОВЕРЛЕЙ ===== */
-.overlay{
-  position:fixed;inset:0;background:rgba(0,0,0,.75);
-  display:none;align-items:center;justify-content:center;z-index:5
-}
-.overlay.show{display:flex}
-.card{
-  background:#1f1f27;padding:20px;border-radius:18px;
-  width:80%;text-align:center
-}
+    /* tile color by value, per skin */
+    /* Classic */
+    .skin-classic .v2{background:#eee4da;color:#111}
+    .skin-classic .v4{background:#ede0c8;color:#111}
+    .skin-classic .v8{background:#f2b179}
+    .skin-classic .v16{background:#f59563}
+    .skin-classic .v32{background:#f67c5f}
+    .skin-classic .v64{background:#f65e3b}
+    .skin-classic .v128{background:#edcf72;color:#111}
+    .skin-classic .v256{background:#edcc61;color:#111}
+    .skin-classic .v512{background:#edc850;color:#111}
+    .skin-classic .v1024{background:#edc53f;color:#111}
+    .skin-classic .v2048{background:#edc22e;color:#111}
 
-/* ===== СУНДУК ===== */
-.chest{
-  width:120px;height:90px;margin:0 auto 10px;
-  background:#7c5a2e;border-radius:10px;
-  animation:shake 1s infinite
-}
-@keyframes shake{
-  0%{transform:rotate(0)}
-  25%{transform:rotate(2deg)}
-  50%{transform:rotate(-2deg)}
-  75%{transform:rotate(2deg)}
-  100%{transform:rotate(0)}
-}
-</style>
+    /* Neon */
+    .skin-neon .tile{background:#15151c}
+    .skin-neon .v2,.skin-neon .v4{background:#00f0ff;color:#091015}
+    .skin-neon .v8,.skin-neon .v16{background:#7c7cff}
+    .skin-neon .v32,.skin-neon .v64{background:#ff00ff}
+    .skin-neon .v128,.skin-neon .v256{background:#00ff6a;color:#07150d}
+    .skin-neon .v512,.skin-neon .v1024,.skin-neon .v2048{background:#ffd400;color:#1a1200}
+
+    /* Lava */
+    .skin-lava .tile{background:#2a0f0f}
+    .skin-lava .v2,.skin-lava .v4{background:#ff5722}
+    .skin-lava .v8,.skin-lava .v16{background:#ff9800;color:#1a1200}
+    .skin-lava .v32,.skin-lava .v64{background:#ff1744}
+    .skin-lava .v128,.skin-lava .v256{background:#ffea00;color:#1a1200}
+    .skin-lava .v512,.skin-lava .v1024,.skin-lava .v2048{background:#ffffff;color:#111}
+
+    /* Mint */
+    .skin-mint .tile{background:#0f2a25}
+    .skin-mint .v2,.skin-mint .v4{background:#00ffc6;color:#061411}
+    .skin-mint .v8,.skin-mint .v16{background:#2de0b0;color:#061411}
+    .skin-mint .v32,.skin-mint .v64{background:#00a3ff}
+    .skin-mint .v128,.skin-mint .v256{background:#00ff6a;color:#061411}
+    .skin-mint .v512,.skin-mint .v1024,.skin-mint .v2048{background:#baffff;color:#061411}
+  </style>
 </head>
 
 <body>
-<div class="app skin-classic" id="app">
+  <div class="app" id="app">
+    <!-- MENU -->
+    <div id="menuScreen">
+      <h1>2048</h1>
+      <div class="btn hidden" id="continueBtn">▶ Продолжить</div>
+      <div class="btn" id="newBtn">🆕 Новая игра</div>
+      <div class="btn" id="questsBtn">📜 Квесты</div>
+      <div class="btn" id="skinsBtn">🎨 Скины</div>
+      <div class="btn" id="chestBtn">🎁 Сундук (<span id="chestCount">0</span>)</div>
+      <div class="smallCenter">Рекорд: <span id="bestMenu">0</span></div>
+    </div>
 
-<!-- ===== МЕНЮ ===== -->
-<div id="menu">
-  <h1>2048</h1>
-  <div class="btn hidden" id="continueBtn" onclick="continueGame()">▶ Продолжить</div>
-  <div class="btn" onclick="newGame()">🆕 Новая игра</div>
-  <div class="btn" onclick="showQuests()">📜 Квесты</div>
-  <div class="btn" onclick="openSkins()">🎨 Скины</div>
-  <div class="btn" onclick="openChest()">🎁 Сундук (<span id="chests">0</span>)</div>
-  <div style="text-align:center;opacity:.7">
-    Рекорд: <span id="bestMenu">0</span>
+    <!-- GAME -->
+    <div id="gameScreen" class="hidden">
+      <div class="top">
+        <div class="badge">
+          Очки<br><b id="score">0</b>
+        </div>
+        <div class="badge">
+          Рекорд<br><b id="best">0</b>
+        </div>
+        <div class="badge action" id="pauseBtn">⏸ Пауза</div>
+      </div>
+
+      <div class="board" id="board">
+        <div class="grid" id="bgGrid"></div>
+        <div class="tiles" id="tilesLayer"></div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <div class="btn secondary" id="toMenuBtn">⬅ Меню</div>
+        <div class="btn secondary" id="restartBtn">🔄 Заново</div>
+      </div>
+    </div>
+
+    <!-- SKINS -->
+    <div id="skinsScreen" class="hidden">
+      <h1>Скины</h1>
+      <div id="skinsList"></div>
+      <div class="btn" id="backFromSkins">⬅ Назад</div>
+    </div>
   </div>
-</div>
 
-<!-- ===== ИГРА ===== -->
-<div id="game" class="hidden">
-  <div class="top">
-    <div class="badge">Очки: <span id="score">0</span></div>
-    <div class="badge" onclick="pauseGame()">⏸ Пауза</div>
+  <!-- OVERLAY -->
+  <div class="overlay" id="overlay">
+    <div class="card">
+      <h2 id="ovTitle"></h2>
+      <div id="ovBody"></div>
+      <div class="btn" id="ovOk">ОК</div>
+    </div>
   </div>
-  <div class="grid" id="grid"></div>
-</div>
 
-<!-- ===== СКИНЫ ===== -->
-<div id="skins" class="hidden">
-  <h1>Скины</h1>
-  <div id="skinsList"></div>
-  <div class="btn" onclick="backToMenu()">⬅ Назад</div>
-</div>
-
-</div>
-
-<!-- ===== ОВЕРЛЕЙ ===== -->
-<div class="overlay" id="overlay">
-  <div class="card">
-    <h2 id="ovTitle"></h2>
-    <div id="ovContent"></div>
-    <div class="btn" onclick="closeOverlay()">ОК</div>
-  </div>
-</div>
-
-<script>
-/* ===== ДАННЫЕ ===== */
-const SKINS={
-  classic:{name:"Классический",rarity:"Обычный",unlocked:true},
-  neon:{name:"Неон",rarity:"Редкий",unlocked:false},
-  lava:{name:"Лава",rarity:"Эпический",unlocked:false},
-  mint:{name:"Мята",rarity:"Редкий",unlocked:false}
-}
-
-let state=JSON.parse(localStorage.getItem("save")) || {
-  grid:null,score:0,
-  best:+localStorage.getItem("best")||0,
-  skin:localStorage.getItem("skin")||"classic",
-  chests:+localStorage.getItem("chests")||0,
-  quests:{128:false,256:false,512:false}
-}
-
-const app=document.getElementById("app")
-const gridEl=document.getElementById("grid")
-const scoreEl=document.getElementById("score")
-
-document.getElementById("bestMenu").textContent=state.best
-document.getElementById("chests").textContent=state.chests
-applySkin()
-checkContinue()
-
-/* ===== СОХРАНЕНИЕ ===== */
-function saveGame(){
-  localStorage.setItem("save",JSON.stringify({
-    grid:state.grid,
-    score:state.score,
-    quests:state.quests
-  }))
-  localStorage.setItem("best",state.best)
-  localStorage.setItem("skin",state.skin)
-  localStorage.setItem("chests",state.chests)
-}
-
-function clearSave(){
-  localStorage.removeItem("save")
-}
-
-function checkContinue(){
-  if(state.grid)document.getElementById("continueBtn").classList.remove("hidden")
-}
-
-/* ===== ИГРА ===== */
-function newGame(){
-  state.grid=Array(16).fill(0)
-  state.score=0
-  add();add()
-  saveGame()
-  start()
-}
-
-function continueGame(){
-  start()
-}
-
-function start(){
-  show("game")
-  draw()
-}
-
-function pauseGame(){
-  saveGame()
-  openOverlay("Пауза",`
-    <div class="btn" onclick="resume()">▶ Продолжить</div>
-    <div class="btn" onclick="exitGame()">⬅ Выйти в меню</div>
-  `)
-}
-function resume(){closeOverlay()}
-function exitGame(){
-  saveGame()
-  closeOverlay()
-  show("menu")
-}
-
-function add(){
-  let e=state.grid.map((v,i)=>v?null:i).filter(v=>v!=null)
-  if(e.length)state.grid[e[Math.random()*e.length|0]]=2
-}
-
-function draw(){
-  gridEl.innerHTML=""
-  scoreEl.textContent=state.score
-  state.grid.forEach(v=>{
-    let d=document.createElement("div")
-    d.className="cell"+(v?" n"+v:"")
-    d.textContent=v||""
-    gridEl.appendChild(d)
-    if(state.quests[v]===false){
-      state.quests[v]=true
-      state.chests++
-      saveGame()
-      openOverlay("Квест выполнен!","Ты получил сундук 🎁")
-    }
-  })
-}
-
-function slide(row){
-  row=row.filter(v=>v)
-  for(let i=0;i<row.length-1;i++){
-    if(row[i]===row[i+1]){
-      row[i]*=2;state.score+=row[i];row[i+1]=0
-    }
-  }
-  return row.filter(v=>v).concat([0,0,0,0]).slice(0,4)
-}
-
-function move(dir){
-  let old=state.grid.slice()
-  for(let i=0;i<4;i++){
-    let r=[]
-    for(let j=0;j<4;j++){
-      let k=dir<2?i*4+j:j*4+i
-      r.push(state.grid[k])
-    }
-    if(dir%2)r.reverse()
-    r=slide(r)
-    if(dir%2)r.reverse()
-    for(let j=0;j<4;j++){
-      let k=dir<2?i*4+j:j*4+i
-      state.grid[k]=r[j]
-    }
-  }
-  if(state.grid+""!==old+""){
-    add()
-    if(state.score>state.best){state.best=state.score}
-    saveGame()
-    draw()
-  }
-}
-
-/* ===== УПРАВЛЕНИЕ ===== */
-document.addEventListener("keydown",e=>{
-  if(e.key==="ArrowLeft")move(0)
-  if(e.key==="ArrowRight")move(1)
-  if(e.key==="ArrowUp")move(2)
-  if(e.key==="ArrowDown")move(3)
-})
-
-let sx,sy
-document.addEventListener("touchstart",e=>{
-  sx=e.touches[0].clientX;sy=e.touches[0].clientY
-},{passive:true})
-document.addEventListener("touchend",e=>{
-  let dx=e.changedTouches[0].clientX-sx
-  let dy=e.changedTouches[0].clientY-sy
-  Math.abs(dx)>Math.abs(dy)?move(dx>0?1:0):move(dy>0?3:2)
-},{passive:true})
-
-/* ===== СУНДУКИ / СКИНЫ ===== */
-function openChest(){
-  if(state.chests<=0){
-    openOverlay("Сундуков нет","Выполняй квесты")
-    return
-  }
-  let pool=Object.entries(SKINS).filter(s=>!s[1].unlocked)
-  if(!pool.length){
-    openOverlay("Все скины открыты","Поздравляем 🎉")
-    return
-  }
-  state.chests--
-  let win=pool[Math.random()*pool.length|0]
-  win[1].unlocked=true
-  saveGame()
-  openOverlay("Сундук открыт!",`
-    <div class="chest"></div>
-    Выпал скин: <b>${win[1].name}</b><br>
-    Редкость: ${win[1].rarity}
-  `)
-}
-
-function openSkins(){
-  show("skins")
-  let list=document.getElementById("skinsList")
-  list.innerHTML=""
-  for(let k in SKINS){
-    let s=SKINS[k]
-    let d=document.createElement("div")
-    d.className="btn"+(s.unlocked?"":" locked")
-    d.textContent=s.name+" ("+s.rarity+")"
-    if(s.unlocked)d.onclick=()=>selectSkin(k)
-    list.appendChild(d)
-  }
-}
-
-function selectSkin(k){
-  state.skin=k
-  localStorage.setItem("skin",k)
-  applySkin()
-  openOverlay("Скин выбран",SKINS[k].name)
-}
-
-function applySkin(){
-  app.className="app skin-"+state.skin
-}
-
-/* ===== UI ===== */
-function show(id){
-  ["menu","game","skins"].forEach(s=>document.getElementById(s).classList.add("hidden"))
-  document.getElementById(id).classList.remove("hidden")
-}
-function backToMenu(){show("menu")}
-function showQuests(){
-  let t=Object.entries(state.quests).map(q=>q[0]+": "+(q[1]?"✔":"❌")).join("<br>")
-  openOverlay("Квесты",t)
-}
-function openOverlay(t,html){
-  document.getElementById("ovTitle").textContent=t
-  document.getElementById("ovContent").innerHTML=html
-  document.getElementById("overlay").classList.add("show")
-}
-function closeOverlay(){document.getElementById("overlay").classList.remove("show")}
   <script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js');
-}
-</script>
+    /* =========================
+       Настройки / Константы
+    ========================== */
+    const SIZE = 4;
+    const SAVE_KEY = "save_2048_v3";
 
-</script>
+    const SKINS = {
+      classic: { name: "Классический", rarity: "Обычный"  },
+      neon:    { name: "Неон",         rarity: "Редкий"   },
+      mint:    { name: "Мята",         rarity: "Редкий"   },
+      lava:    { name: "Лава",         rarity: "Эпический"}
+    };
+
+    const QUEST_VALUES = [128, 256, 512];
+
+    /* =========================
+       DOM
+    ========================== */
+    const app = document.getElementById("app");
+    const menuScreen = document.getElementById("menuScreen");
+    const gameScreen = document.getElementById("gameScreen");
+    const skinsScreen = document.getElementById("skinsScreen");
+
+    const continueBtn = document.getElementById("continueBtn");
+    const newBtn = document.getElementById("newBtn");
+    const questsBtn = document.getElementById("questsBtn");
+    const skinsBtn = document.getElementById("skinsBtn");
+    const chestBtn = document.getElementById("chestBtn");
+
+    const bestMenu = document.getElementById("bestMenu");
+    const chestCount = document.getElementById("chestCount");
+
+    const scoreEl = document.getElementById("score");
+    const bestEl = document.getElementById("best");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const toMenuBtn = document.getElementById("toMenuBtn");
+    const restartBtn = document.getElementById("restartBtn");
+
+    const board = document.getElementById("board");
+    const bgGrid = document.getElementById("bgGrid");
+    const tilesLayer = document.getElementById("tilesLayer");
+
+    const skinsList = document.getElementById("skinsList");
+    const backFromSkins = document.getElementById("backFromSkins");
+
+    const overlay = document.getElementById("overlay");
+    const ovTitle = document.getElementById("ovTitle");
+    const ovBody = document.getElementById("ovBody");
+    const ovOk = document.getElementById("ovOk");
+
+    /* =========================
+       State
+    ========================== */
+    let state = loadOrCreate();
+    let animating = false;
+
+    function createEmptyState() {
+      return {
+        grid: Array.from({length: SIZE}, () => Array(SIZE).fill(null)), // tileId or null
+        tiles: {},               // id -> {id, value, r, c}
+        nextId: 1,
+        score: 0,
+        best: 0,
+        skin: "classic",
+        chests: 0,
+        quests: {128:false,256:false,512:false},
+        unlockedSkins: { classic:true, neon:false, mint:false, lava:false }
+      };
+    }
+
+    function loadOrCreate(){
+      const raw = localStorage.getItem(SAVE_KEY);
+      if(!raw){
+        const s = createEmptyState();
+        s.best = +localStorage.getItem("best_2048") || 0;
+        s.skin = localStorage.getItem("skin_2048") || "classic";
+        return s;
+      }
+      try{
+        const s = JSON.parse(raw);
+        // восстановим best/skin если они отдельно менялись
+        s.best = Math.max(s.best || 0, +localStorage.getItem("best_2048") || 0);
+        s.skin = localStorage.getItem("skin_2048") || s.skin || "classic";
+        if(!s.unlockedSkins) s.unlockedSkins = { classic:true, neon:false, mint:false, lava:false };
+        if(!s.quests) s.quests = {128:false,256:false,512:false};
+        if(!s.chests && s.chests !== 0) s.chests = 0;
+        return s;
+      }catch{
+        return createEmptyState();
+      }
+    }
+
+    function save(){
+      localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+      localStorage.setItem("best_2048", String(state.best));
+      localStorage.setItem("skin_2048", state.skin);
+      bestMenu.textContent = state.best;
+      bestEl.textContent = state.best;
+      chestCount.textContent = state.chests;
+    }
+
+    function hasSaveGame(){
+      // есть ли хоть 1 плитка
+      return Object.keys(state.tiles).length > 0;
+    }
+
+    /* =========================
+       UI helpers
+    ========================== */
+    function showScreen(which){
+      menuScreen.classList.toggle("hidden", which !== "menu");
+      gameScreen.classList.toggle("hidden", which !== "game");
+      skinsScreen.classList.toggle("hidden", which !== "skins");
+    }
+
+    function openOverlay(title, html, okText="ОК"){
+      ovTitle.textContent = title;
+      ovBody.innerHTML = html;
+      ovOk.textContent = okText;
+      overlay.classList.add("show");
+    }
+    function closeOverlay(){
+      overlay.classList.remove("show");
+    }
+
+    ovOk.addEventListener("click", closeOverlay);
+
+    /* =========================
+       Board layout
+    ========================== */
+    function buildBackground(){
+      bgGrid.innerHTML = "";
+      for(let i=0;i<SIZE*SIZE;i++){
+        const d = document.createElement("div");
+        d.className = "cell";
+        bgGrid.appendChild(d);
+      }
+    }
+
+    function computeTileSize(){
+      const rect = board.getBoundingClientRect();
+      const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--gap"));
+      const inner = rect.width - gap*2; // padding var(--gap) on board, tilesLayer inset also gap
+      const tile = (inner - gap*(SIZE-1)) / SIZE;
+      document.documentElement.style.setProperty("--tileSize", tile + "px");
+    }
+
+    window.addEventListener("resize", () => {
+      computeTileSize();
+      // пересчитать позиции
+      for(const id in state.tiles){
+        placeTileElement(id, state.tiles[id].r, state.tiles[id].c, false);
+      }
+    });
+
+    /* =========================
+       Skin apply
+    ========================== */
+    function applySkin(){
+      app.className = "app skin-" + state.skin;
+    }
+
+    /* =========================
+       Tiles DOM
+    ========================== */
+    function tileClassByValue(v){
+      return "v" + v;
+    }
+
+    function fontClass(v){
+      if(v >= 1024) return "tiny";
+      if(v >= 128) return "small";
+      return "";
+    }
+
+    function posToXY(r,c){
+      const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--gap"));
+      const tile = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--tileSize"));
+      const x = c * (tile + gap);
+      const y = r * (tile + gap);
+      return {x, y};
+    }
+
+    function createTileElement(tile){
+      const el = document.createElement("div");
+      el.className = "tile " + tileClassByValue(tile.value) + " " + fontClass(tile.value);
+      el.dataset.id = String(tile.id);
+      el.textContent = tile.value;
+      tilesLayer.appendChild(el);
+      return el;
+    }
+
+    function getTileElement(id){
+      return tilesLayer.querySelector(`.tile[data-id="${id}"]`);
+    }
+
+    function placeTileElement(id, r, c, withTransition=true){
+      const el = getTileElement(id);
+      if(!el) return;
+      const {x,y} = posToXY(r,c);
+      el.style.setProperty("--x", x+"px");
+      el.style.setProperty("--y", y+"px");
+      if(!withTransition){
+        el.style.transition = "none";
+        el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+        // reflow then restore
+        void el.offsetHeight;
+        el.style.transition = "";
+      }else{
+        el.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+      }
+    }
+
+    function updateTileVisual(id){
+      const t = state.tiles[id];
+      const el = getTileElement(id);
+      if(!t || !el) return;
+      el.className = "tile " + tileClassByValue(t.value) + " " + fontClass(t.value);
+      el.textContent = t.value;
+    }
+
+    function removeTile(id){
+      const el = getTileElement(id);
+      if(el) el.remove();
+      delete state.tiles[id];
+      for(let r=0;r<SIZE;r++){
+        for(let c=0;c<SIZE;c++){
+          if(state.grid[r][c] === id) state.grid[r][c] = null;
+        }
+      }
+    }
+
+    /* =========================
+       Game init/render
+    ========================== */
+    function clearAllTilesDOM(){
+      tilesLayer.innerHTML = "";
+    }
+
+    function renderAllFromState(){
+      scoreEl.textContent = state.score;
+      bestEl.textContent = state.best;
+      bestMenu.textContent = state.best;
+      chestCount.textContent = state.chests;
+
+      applySkin();
+      computeTileSize();
+
+      clearAllTilesDOM();
+      for(const id in state.tiles){
+        const t = state.tiles[id];
+        createTileElement(t);
+        placeTileElement(t.id, t.r, t.c, false);
+      }
+    }
+
+    function resetGame(){
+      // сохраняем прогресс скинов/сундуков/квестов/рекорда
+      const keep = {
+        best: state.best,
+        skin: state.skin,
+        chests: state.chests,
+        quests: state.quests,
+        unlockedSkins: state.unlockedSkins
+      };
+      state = createEmptyState();
+      state.best = keep.best;
+      state.skin = keep.skin;
+      state.chests = keep.chests;
+      state.quests = keep.quests;
+      state.unlockedSkins = keep.unlockedSkins;
+      spawnRandomTile(2);
+      spawnRandomTile(2);
+      save();
+      renderAllFromState();
+    }
+
+    function startNewGame(){
+      showScreen("game");
+      resetGame();
+    }
+
+    function continueGame(){
+      showScreen("game");
+      renderAllFromState();
+    }
+
+    /* =========================
+       Spawn / Checks
+    ========================== */
+    function emptyCells(){
+      const res = [];
+      for(let r=0;r<SIZE;r++){
+        for(let c=0;c<SIZE;c++){
+          if(state.grid[r][c] === null) res.push({r,c});
+        }
+      }
+      return res;
+    }
+
+    function spawnRandomTile(value){
+      const empties = emptyCells();
+      if(!empties.length) return null;
+      const spot = empties[(Math.random()*empties.length)|0];
+      const id = state.nextId++;
+      const tile = {id, value, r: spot.r, c: spot.c};
+      state.tiles[id] = tile;
+      state.grid[spot.r][spot.c] = id;
+      const el = createTileElement(tile);
+      placeTileElement(id, tile.r, tile.c, false);
+      el.classList.add("spawn");
+      return id;
+    }
+
+    function canMove(){
+      if(emptyCells().length) return true;
+      // если есть одинаковые соседи
+      for(let r=0;r<SIZE;r++){
+        for(let c=0;c<SIZE;c++){
+          const id = state.grid[r][c];
+          const v = state.tiles[id].value;
+          if(r+1<SIZE){
+            const id2 = state.grid[r+1][c];
+            if(state.tiles[id2].value === v) return true;
+          }
+          if(c+1<SIZE){
+            const id2 = state.grid[r][c+1];
+            if(state.tiles[id2].value === v) return true;
+          }
+        }
+      }
+      return false;
+    }
+
+    function checkQuestsAfterMove(newMaxValue){
+      // квесты: 128/256/512
+      let gotChest = false;
+      for(const q of QUEST_VALUES){
+        if(newMaxValue >= q && state.quests[q] === false){
+          state.quests[q] = true;
+          state.chests++;
+          gotChest = true;
+        }
+      }
+      if(gotChest){
+        save();
+        openOverlay("Квест выполнен!", "Ты получил сундук 🎁<br><span style='color:rgba(255,255,255,.7)'>Проверь меню или кнопку сундука</span>");
+      }
+    }
+
+    function maxTileValue(){
+      let m = 0;
+      for(const id in state.tiles){
+        m = Math.max(m, state.tiles[id].value);
+      }
+      return m;
+    }
+
+    /* =========================
+       Move logic with merges
+    ========================== */
+    function dirVectors(dir){
+      // 0 left, 1 right, 2 up, 3 down
+      if(dir===0) return {dr:0, dc:-1};
+      if(dir===1) return {dr:0, dc: 1};
+      if(dir===2) return {dr:-1,dc:0};
+      return {dr:1, dc:0};
+    }
+
+    function iterLines(dir){
+      // возвращает массив линий, каждая линия — массив координат {r,c} в порядке движения
+      const lines = [];
+      if(dir===0){ // left
+        for(let r=0;r<SIZE;r++){
+          const line=[];
+          for(let c=0;c<SIZE;c++) line.push({r,c});
+          lines.push(line);
+        }
+      }else if(dir===1){ // right
+        for(let r=0;r<SIZE;r++){
+          const line=[];
+          for(let c=SIZE-1;c>=0;c--) line.push({r,c});
+          lines.push(line);
+        }
+      }else if(dir===2){ // up
+        for(let c=0;c<SIZE;c++){
+          const line=[];
+          for(let r=0;r<SIZE;r++) line.push({r,c});
+          lines.push(line);
+        }
+      }else{ // down
+        for(let c=0;c<SIZE;c++){
+          const line=[];
+          for(let r=SIZE-1;r>=0;r--) line.push({r,c});
+          lines.push(line);
+        }
+      }
+      return lines;
+    }
+
+    function doMove(dir){
+      if(animating) return;
+      if(gameScreen.classList.contains("hidden")) return;
+
+      const lines = iterLines(dir);
+      const movedTiles = new Map(); // id -> {toR,toC}
+      const merges = []; // {survivorId, consumedId, newValue, toR,toC}
+      let anyMoved = false;
+      let scoreAdd = 0;
+
+      // clone occupancy map for planning
+      const newGrid = Array.from({length: SIZE}, () => Array(SIZE).fill(null));
+
+      // helper: place a tile id in newGrid
+      const placePlanned = (id, r, c) => { newGrid[r][c] = id; };
+
+      // For each line, compress/merge
+      for(const line of lines){
+        const ids = [];
+        for(const p of line){
+          const id = state.grid[p.r][p.c];
+          if(id !== null) ids.push(id);
+        }
+
+        const out = [];
+        let i=0;
+        while(i < ids.length){
+          const a = ids[i];
+          const av = state.tiles[a].value;
+          const b = ids[i+1];
+          if(b !== undefined && state.tiles[b].value === av){
+            // merge a + b -> a survives
+            out.push(a);
+            merges.push({survivorId:a, consumedId:b, newValue: av*2});
+            scoreAdd += av*2;
+            i += 2;
+          }else{
+            out.push(a);
+            i += 1;
+          }
+        }
+
+        // fill to length SIZE with nulls
+        while(out.length < SIZE) out.push(null);
+
+        // assign positions along the line order
+        for(let k=0;k<SIZE;k++){
+          const target = line[k];
+          const id = out[k];
+          if(id === null) continue;
+
+          const old = state.tiles[id];
+          // plan tile move
+          if(old.r !== target.r || old.c !== target.c) anyMoved = true;
+          movedTiles.set(id, {toR: target.r, toC: target.c});
+          placePlanned(id, target.r, target.c);
+        }
+
+        // If there was a merge but tile positions might be same, consider as moved
+        // (if two tiles merge into one in same spot, it still changes board)
+        // We'll detect by merges existence later
+      }
+
+      if(!anyMoved && merges.length===0) return;
+
+      // Apply planned grid positions immediately (so next spawn works)
+      state.grid = newGrid;
+
+      // Apply score/best
+      state.score += scoreAdd;
+      if(state.score > state.best) state.best = state.score;
+
+      // Trigger animations: move all tiles that have target coords
+      animating = true;
+
+      for(const [id, to] of movedTiles.entries()){
+        const t = state.tiles[id];
+        t.r = to.toR; t.c = to.toC;
+        placeTileElement(id, t.r, t.c, true);
+      }
+
+      // For merges: move consumed tile also to survivor position (if not already)
+      for(const m of merges){
+        const s = state.tiles[m.survivorId];
+        const c = state.tiles[m.consumedId];
+        if(!s || !c) continue;
+        // consumed should also end in survivor cell (which is already in s.r/s.c after move)
+        c.r = s.r; c.c = s.c;
+        placeTileElement(m.consumedId, c.r, c.c, true);
+      }
+
+      // After transition end: apply merges, remove consumed, pop survivor
+      setTimeout(()=>{
+        // apply merges
+        for(const m of merges){
+          const s = state.tiles[m.survivorId];
+          if(!s) continue;
+          // consumed may already be removed by previous merge in rare edge, check
+          if(state.tiles[m.consumedId]){
+            removeTile(m.consumedId);
+          }
+          s.value = m.newValue;
+          updateTileVisual(m.survivorId);
+
+          const el = getTileElement(m.survivorId);
+          if(el){
+            // pop animation anchored at current x,y
+            const {x,y} = posToXY(s.r,s.c);
+            el.style.setProperty("--x", x+"px");
+            el.style.setProperty("--y", y+"px");
+            el.classList.remove("pop");
+            void el.offsetHeight;
+            el.classList.add("pop");
+          }
+        }
+
+        // Spawn new tile (90% 2, 10% 4)
+        spawnRandomTile(Math.random()<0.9 ? 2 : 4);
+
+        // Update UI
+        scoreEl.textContent = state.score;
+        bestEl.textContent = state.best;
+        bestMenu.textContent = state.best;
+        chestCount.textContent = state.chests;
+
+        // Quests check
+        checkQuestsAfterMove(maxTileValue());
+
+        save();
+
+        // Game over check
+        if(!canMove()){
+          openOverlay("Игра окончена", `
+            <p>Ходов больше нет 😵</p>
+            <div class="row">
+              <div class="btn" onclick="window.__restartFromOverlay()">🔄 Заново</div>
+              <div class="btn secondary" onclick="window.__menuFromOverlay()">⬅ Меню</div>
+            </div>
+          `, "Закрыть");
+        }
+
+        animating = false;
+      }, 170);
+    }
+
+    // helper for overlay buttons
+    window.__restartFromOverlay = () => { closeOverlay(); resetGame(); };
+    window.__menuFromOverlay = () => { closeOverlay(); showScreen("menu"); };
+
+    /* =========================
+       Pause menu
+    ========================== */
+    function pauseMenu(){
+      save();
+      openOverlay("Пауза", `
+        <div class="row">
+          <div class="btn" onclick="window.__resume()">▶ Продолжить</div>
+          <div class="btn secondary" onclick="window.__goMenu()">⬅ Меню</div>
+        </div>
+        <div class="btn secondary" onclick="window.__restart()">🔄 Заново</div>
+      `, "Закрыть");
+    }
+    window.__resume = () => closeOverlay();
+    window.__goMenu = () => { closeOverlay(); showScreen("menu"); };
+    window.__restart = () => { closeOverlay(); resetGame(); };
+
+    /* =========================
+       Quests / Chest / Skins
+    ========================== */
+    function showQuests(){
+      const rows = QUEST_VALUES.map(v => `${v}: ${state.quests[v] ? "✔" : "❌"}`).join("<br>");
+      openOverlay("Квесты", `
+        <p>Собери плитки:</p>
+        <div style="font-weight:900;font-size:18px;line-height:1.6">${rows}</div>
+        <p style="margin-top:10px">За каждый квест даётся <b>сундук 🎁</b></p>
+      `);
+    }
+
+    function rarityRoll(){
+      // проценты можно менять
+      const r = Math.random();
+      if(r < 0.60) return "Обычный";
+      if(r < 0.90) return "Редкий";
+      return "Эпический";
+    }
+
+    function openChest(){
+      if(state.chests <= 0){
+        openOverlay("Сундуков нет", "<p>Выполняй квесты или набирай рекорды 🙂</p>");
+        return;
+      }
+      const locked = Object.keys(SKINS).filter(k => !state.unlockedSkins[k]);
+      if(locked.length === 0){
+        openOverlay("Все скины открыты", "<p>Ты выбил всё 🎉</p>");
+        return;
+      }
+
+      state.chests--;
+      save();
+
+      // show opening animation first
+      openOverlay("Открываем сундук…", `
+        <div class="chestBox"></div>
+        <div class="spark">✨✨✨</div>
+        <p>Сейчас выпадет скин…</p>
+      `, "Подождать");
+
+      // after a short delay reveal reward
+      setTimeout(()=>{
+        const wantRarity = rarityRoll();
+        const candidates = locked.filter(k => SKINS[k].rarity === wantRarity);
+        const pool = candidates.length ? candidates : locked;
+        const won = pool[(Math.random()*pool.length)|0];
+
+        state.unlockedSkins[won] = true;
+        save();
+
+        openOverlay("Сундук открыт!", `
+          <div class="chestBox" style="animation:none"></div>
+          <p>Выпал скин:</p>
+          <div style="font-weight:950;font-size:20px">${SKINS[won].name}</div>
+          <p>Редкость: <b>${SKINS[won].rarity}</b></p>
+          <div class="btn" onclick="window.__equipSkin('${won}')">🎨 Надеть</div>
+        `, "Закрыть");
+      }, 900);
+    }
+
+    window.__equipSkin = (k) => {
+      if(!state.unlockedSkins[k]) return;
+      state.skin = k;
+      applySkin();
+      save();
+      closeOverlay();
+      openOverlay("Готово", `<p>Скин выбран: <b>${SKINS[k].name}</b></p>`);
+    };
+
+    function openSkins(){
+      showScreen("skins");
+      skinsList.innerHTML = "";
+
+      for(const k of Object.keys(SKINS)){
+        const s = SKINS[k];
+        const unlocked = !!state.unlockedSkins[k];
+        const d = document.createElement("div");
+        d.className = "btn" + (unlocked ? "" : " locked");
+        d.innerHTML = `${unlocked ? "🎨" : "🔒"} ${s.name} <span style="opacity:.7">(${s.rarity})</span>` +
+                      (state.skin===k ? `<div style="opacity:.7;font-size:14px;margin-top:4px">Выбрано</div>` : "");
+        if(unlocked){
+          d.addEventListener("click", ()=>{
+            state.skin = k;
+            applySkin();
+            save();
+            openOverlay("Скин выбран", `<p>${s.name}</p>`);
+          });
+        }else{
+          d.addEventListener("click", ()=>{
+            openOverlay("Закрыто", `<p>Этот скин падает из сундуков 🎁</p>`);
+          });
+        }
+        skinsList.appendChild(d);
+      }
+    }
+
+    /* =========================
+       Input (keys + swipe)
+    ========================== */
+    document.addEventListener("keydown", (e)=>{
+      if(overlay.classList.contains("show")) return;
+      if(e.key === "ArrowLeft")  doMove(0);
+      if(e.key === "ArrowRight") doMove(1);
+      if(e.key === "ArrowUp")    doMove(2);
+      if(e.key === "ArrowDown")  doMove(3);
+    });
+
+    let sx=0, sy=0, tracking=false;
+    board.addEventListener("touchstart", (e)=>{
+      if(overlay.classList.contains("show")) return;
+      tracking=true;
+      sx=e.touches[0].clientX;
+      sy=e.touches[0].clientY;
+    }, {passive:true});
+
+    board.addEventListener("touchend", (e)=>{
+      if(!tracking) return;
+      tracking=false;
+      const dx=e.changedTouches[0].clientX - sx;
+      const dy=e.changedTouches[0].clientY - sy;
+      const ax=Math.abs(dx), ay=Math.abs(dy);
+      if(Math.max(ax,ay) < 18) return; // порог
+      if(ax > ay) doMove(dx>0 ? 1 : 0);
+      else doMove(dy>0 ? 3 : 2);
+    }, {passive:true});
+
+    /* =========================
+       Buttons bindings
+    ========================== */
+    continueBtn.addEventListener("click", continueGame);
+    newBtn.addEventListener("click", startNewGame);
+    questsBtn.addEventListener("click", showQuests);
+    skinsBtn.addEventListener("click", openSkins);
+    chestBtn.addEventListener("click", openChest);
+
+    pauseBtn.addEventListener("click", pauseMenu);
+    toMenuBtn.addEventListener("click", ()=>{ save(); showScreen("menu"); });
+    restartBtn.addEventListener("click", resetGame);
+
+    backFromSkins.addEventListener("click", ()=> showScreen("menu"));
+
+    /* =========================
+       Boot
+    ========================== */
+    function ensureContinueVisibility(){
+      continueBtn.classList.toggle("hidden", !hasSaveGame());
+    }
+
+    function init(){
+      buildBackground();
+      applySkin();
+      computeTileSize();
+
+      bestMenu.textContent = state.best;
+      bestEl.textContent = state.best;
+      chestCount.textContent = state.chests;
+
+      ensureContinueVisibility();
+      showScreen("menu");
+    }
+
+    // if state has tiles, render ready for continue (but keep menu)
+    init();
+
+    /* =========================
+       Service Worker register (fullscreen/без ссылок + офлайн)
+    ========================== */
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js');
+    }
+  </script>
 </body>
 </html>
-
-
-
